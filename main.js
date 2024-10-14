@@ -3,7 +3,7 @@ import Stats from "stats-gl";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
-import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { FastBloomPass } from "./fastBloomPass";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 
 const scene = new THREE.Scene();
@@ -63,7 +63,7 @@ controls.update();
 
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-composer.addPass(new UnrealBloomPass(512, 1, 1, 0.1));
+composer.addPass(new FastBloomPass());
 // composer.addPass(
 //   new EffectPass(
 //     camera,
