@@ -8,17 +8,19 @@ import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(
-  75,
+  60,
   window.innerWidth / window.innerHeight,
   0.1,
   1000
 );
 const renderer = new THREE.WebGLRenderer({
-  powerPreference: "high-performance",
+  // powerPreference: "high-performance",
   antialias: false,
   stencil: false,
   depth: false,
+  transparent: true,
 });
+
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
@@ -60,6 +62,9 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.25;
 controls.enableZoom = true;
 controls.update();
+
+// renderer.setClearColor(0x000000, 0); // Set clear color to black with 0 alpha (fully transparent)
+// renderer.setPixelRatio(window.devicePixelRatio);
 
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));

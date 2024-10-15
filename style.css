@@ -1,5 +1,6 @@
 :root {
   --color-primary: #000;
+  background-color: var(--color-primary);
 }
 body {
   margin: 0;

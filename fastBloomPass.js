@@ -6,6 +6,10 @@ import {
   WebGLRenderTarget,
   LinearMipMapLinearFilter,
   FloatType,
+  LinearFilter,
+  Texture,
+  RGBAFormat,
+  HalfFloatType,
 } from "three";
 import {
   Pass,
@@ -13,8 +17,8 @@ import {
 } from "three/examples/jsm/postprocessing/Pass.js";
 
 const leanpsrdnoise = `
-const float alpha = PI;
-const vec2 period = vec2(2.);
+const float alpha = 1.;
+const vec2 period = vec2(PI);
 float psrdnoise(vec2 x){
   vec2 uv = vec2(x.x+x.y*0.5, x.y);
   vec2 i0 = floor(uv), f0 = fract(uv);
@@ -57,9 +61,47 @@ float psrdnoise(vec2 x){
   return 10.9*n;
 }
 `;
+
+// Helper function to generate mipmaps
+function generateMipmaps(gl, renderer, texture) {
+  // Ensure we're working with a WebGL2 context
+  if (!(gl instanceof WebGL2RenderingContext)) {
+    console.error("WebGL2 is required for this operation");
+    return;
+  }
+
+  const glTexture = renderer.properties.get(texture).__webglTexture;
+  // console.log(glTexture);
+  gl.bindTexture(gl.TEXTURE_2D, glTexture);
+  gl.generateMipmap(gl.TEXTURE_2D);
+  // Set texture format to RGBA float
+  gl.texImage2D(
+    gl.TEXTURE_2D,
+    0,
+    gl.RGBA32F,
+    texture.image.width,
+    texture.image.height,
+    0,
+    gl.RGBA,
+    gl.HALF_FLOAT,
+    null
+  );
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(
+    gl.TEXTURE_2D,
+    gl.TEXTURE_MIN_FILTER,
+    gl.LINEAR_MIPMAP_LINEAR
+  );
+  // gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+  gl.bindTexture(gl.TEXTURE_2D, null);
+}
+
 class FastBloomPass extends Pass {
-  constructor(strength = 1, disk = 100, samples = 16, options = {}) {
+  constructor(renderer, strength = 1, disk = 100, samples = 16, options = {}) {
     super();
+    this.clear = false;
     this.textureID = "tDiffuse";
     this.pixelSize = 1;
     this.resolution = new Vector2();
@@ -68,10 +110,14 @@ class FastBloomPass extends Pass {
     this.luminanceMaterial = this.createLuminanceMaterial();
     this.fsQuad = new FullScreenQuad(this.fastBloomMaterial);
     this.renderToScreen = false;
-    this.luminanceRenderTarget = new WebGLRenderTarget();
-    this.luminanceRenderTarget.texture.minFilter = LinearMipMapLinearFilter;
-    this.luminanceRenderTarget.texture.magFilter = LinearMipMapLinearFilter;
-    this.luminanceRenderTarget.texture.type = FloatType;
+    this.luminanceRenderTarget = new WebGLRenderTarget(1, 1, {
+      format: RGBAFormat,
+      type: HalfFloatType,
+      generateMipmaps: false,
+    });
+    this.luminanceRenderTarget.texture.name = "FastBloomPass.luminance";
+    this.luminanceRenderTarget.depthBuffer = false;
+    this.gl = null;
   }
 
   dispose() {
@@ -89,7 +135,18 @@ class FastBloomPass extends Pass {
     );
     const { x, y } = this.renderResolution;
     this.luminanceRenderTarget.setSize(x, y);
-    this.fsQuad.material.uniforms.resolution.value.set(x, y, 1 / x, 1 / y);
+    this.luminanceMaterial.uniforms.resolution.value.set(
+      x * this.pixelSize,
+      y * this.pixelSize,
+      1 / x,
+      1 / y
+    );
+    this.fastBloomMaterial.uniforms.resolution.value.set(
+      x * this.pixelSize,
+      y * this.pixelSize,
+      1 / x,
+      1 / y
+    );
   }
 
   setPixelSize(pixelSize) {
@@ -97,19 +154,32 @@ class FastBloomPass extends Pass {
     this.setSize(this.resolution.x, this.resolution.y);
   }
 
-  render(renderer, writeBuffer, readBuffer /*, deltaTime, maskActive */) {
-    // First, render the diffuse texture to the luminance render target
+  render(renderer, writeBuffer, readBuffer, deltaTime) {
+    if (this.gl === null) {
+      this.gl = renderer.getContext();
+    }
+
     renderer.setRenderTarget(this.luminanceRenderTarget);
     this.fsQuad.material = this.luminanceMaterial;
     this.luminanceMaterial.uniforms.tDiffuse.value = readBuffer.texture;
     this.fsQuad.render(renderer);
 
+    // Generate mipmaps after rendering to luminanceRenderTarget
+    generateMipmaps(this.gl, renderer, this.luminanceRenderTarget.texture);
+
+    // Rebind the main texture after the luminance pass
+    this.gl.bindTexture(
+      this.gl.TEXTURE_2D,
+      renderer.properties.get(readBuffer.texture).__webglTexture
+    );
+
     // Now, use the luminance texture for the fast bloom pass
     this.fsQuad.material = this.fastBloomMaterial;
+
     this.fastBloomMaterial.uniforms.tDiffuse.value = readBuffer.texture;
     this.fastBloomMaterial.uniforms.tLuminance.value =
       this.luminanceRenderTarget.texture;
-
+    this.fsQuad.material["tTime"] += deltaTime;
     if (this.renderToScreen) {
       renderer.setRenderTarget(null);
       this.fsQuad.render(renderer);
@@ -126,37 +196,12 @@ class FastBloomPass extends Pass {
     }
   }
 
-  /*
-const uniforms = {
-    blend: blendSlider.value(),
-    split: splitSlider.value(),
-    disk: diskSlider.value(),
-    samples: samplesSlider.value(),
-    lods: lodSlider.value(),
-    lodSteps: lodStepsSlider.value(),
-    compression: compressionSlider.value(),
-    saturationSteps: saturationStepsSlider.value(),
-    renderPass: renderPass.color,
-    luminancePass : mipTexture,
-    blendMode : blendModeButton.checked(),
-    time: frameCount * 0.01,
-    resolution: [width * pixelDensity(), height * pixelDensity()],
-  };
-*/
-
-  /*
-buffer: renderPass.color,
-    resolution : [width * pixelDensity(), height * pixelDensity()],
-	luminosityThreshold: doms.luminanceSlider.value(),
-	smoothWidth:doms.luminanceWidthSlider.value(),
-*/
-
   createLuminanceMaterial() {
     return new ShaderMaterial({
       uniforms: {
         tDiffuse: { value: null },
-        luminanceTreshold: { value: 0.125 },
-        smoothWidth: { value: 0.25 },
+        luminanceTreshold: { value: 0.05 },
+        smoothWidth: { value: 2 },
         resolution: {
           value: new Vector4(
             this.renderResolution.x,
@@ -175,15 +220,16 @@ buffer: renderPass.color,
   
   uniform sampler2D tDiffuse;
   uniform vec2 resolution;
-  uniform float luminosityThreshold;
+  uniform float luminanceTreshold;
   uniform float smoothWidth;
     
   void main() {
     vec2 uv = gl_FragCoord.xy/resolution.xy;
   	vec4 texel = texture( tDiffuse, uv);
-  	float v = dot(vec3(0.2125, 0.7154, 0.0721), texel.xyz );
-  	float alpha = smoothstep( luminosityThreshold, luminosityThreshold + smoothWidth, v );
+  	float v = dot(vec3(0.2125, 0.7154, 0.0721 ), texel.rgb );
+  	float alpha = smoothstep( luminanceTreshold, luminanceTreshold + smoothWidth, v );
   	gl_FragColor = mix( vec4(0.), texel, alpha );
+    
   }`,
     });
   }
@@ -191,17 +237,16 @@ buffer: renderPass.color,
   createFastBloomMaterial() {
     return new ShaderMaterial({
       uniforms: {
-        tDiffuse: { value: null },
-        strength: { value: 0.0 },
+        strength: { value: 1.0 },
         disk: { value: 100.0 },
-        samples: { value: 16.0 },
+        samples: { value: 20.0 },
         lods: { value: 5.0 },
         lodSteps: { value: 2.0 },
-        compression: { value: 4.0 },
-        saturation: { value: 1 },
+        compression: { value: 2.0 },
+        saturation: { value: 8.0 },
         tDiffuse: { value: null },
         tLuminance: { value: null },
-        blendMode: { value: false },
+        blendMode: { value: true },
         tTime: { value: 0 },
         resolution: {
           value: new Vector4(
@@ -224,21 +269,21 @@ buffer: renderPass.color,
   uniform sampler2D tDiffuse;
   uniform sampler2D tLuminance;
 
-  uniform float blend;
+  uniform float strength;
   uniform float split;
   uniform float disk;
   uniform int samples;
   uniform int lods;
   uniform float lodSteps;
   uniform float compression;
-  uniform float saturationSteps;
+  uniform float saturation;
   uniform bool blendMode;
   
   #define T tTime
   #define R resolution.xy
   #define PI 3.14159265358
   #define PI2 6.28318530718
-  #define NOISE_SCALE 256.
+  #define NOISE_SCALE 2048.
   #define EPSILON 1e-5
 
 const float sqrtPI = sqrt(PI2);
@@ -297,22 +342,24 @@ scale blur on lod
 
   void main(){
     vec2 uv = (gl_FragCoord.xy/R);
-    vec2 radii = (disk * R.x/R.y)/R;
-    vec4 frame = textureLod(tDiffuse,uv,0.);
+    vec2 radii = vec2(disk * R.x/R.y)/R;
+    vec4 frame = texture(tDiffuse,uv);
     vec4 color = vec4(0.);
     float noise = psrdnoise(uv * NOISE_SCALE + T);
     float angle = PI + (noise * 2.- 1.) * PI;
     vec2 polar = vec2(cos(angle), sin(angle));
     float steps = lodSteps;
-    for(int i = 1; i<lods; i++){
-      float lod = float(i) * steps;
+    // vec4 color = goldenBlur(uv, polar, radii, samples, 0.);
+    for(int i = 0; i<lods; i++){
+      float lod = float(i) * lodSteps;
       color = blending(goldenBlur(uv, polar, radii, samples, lod ),color, false, blendMode);
     }
     color /= compression;
-    gl_FragColor = screen(frame, clamp(color*saturationSteps,0.,1.), true);
-    gl_FragColor = pow(clamp(gl_FragColor,0.,1.),vec4(1./1.22));
-    gl_FragColor = mix(frame, gl_FragColor, blend);
-    gl_FragColor = texture(tLuminance,uv);
+    gl_FragColor = screen(frame, color*saturation, true);
+    //gl_FragColor = clamp(frame + color , 0., 1.);
+    // gl_FragColor = pow(clamp(gl_FragColor,0.,1.),vec4(1./1.22));
+    //gl_FragColor = mix(frame, gl_FragColor, 1.);
+    //gl_FragColor = color;
 
   }
   `,
