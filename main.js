@@ -38,21 +38,22 @@ const lightColors = [0xff00ff, 0x00ffff]; // Magenta and Cyan
 const numLights = 6; // 3 of each color
 
 for (let i = 0; i < numLights; i++) {
-  const color = lightColors[i % 2]; // Alternate between magenta and cyan
-  const pointLight = new THREE.PointLight(color, 10, 200);
-
-  // Random position within a sphere
-  const radius = 100 + Math.random() * 100; // Between 100 and 200
+  const radius = 300 + Math.random() * 800;
   const theta = Math.random() * Math.PI * 2;
   const phi = Math.acos(2 * Math.random() - 1);
-
-  pointLight.position.set(
+  const color = lightColors[i % 2]; // Alternate between magenta and cyan
+  const directionalLight = new THREE.DirectionalLight(
+    color,
+    Math.random() * 2.5 + 2.5
+  ); // Random intensity between 5 and 10
+  directionalLight.position.set(
     radius * Math.sin(phi) * Math.cos(theta),
     radius * Math.sin(phi) * Math.sin(theta),
     radius * Math.cos(phi)
   );
+  directionalLight.lookAt(scene.position); // Point the light at the center of the scene
 
-  scene.add(pointLight);
+  // scene.add(directionalLight);
 }
 
 scene.add(light);
@@ -65,9 +66,9 @@ const geometry = new THREE.IcosahedronGeometry(1, 0);
 for (let i = 0; i < 100; i++) {
   const material = new THREE.MeshPhysicalMaterial({
     color: 0xffffff * (0.5 + Math.random() * 0.5),
-    metalness: 0.5,
-    roughness: 0.4,
-    envMapIntensity: 1.0,
+    metalness: 0.25,
+    roughness: 0.25,
+    reflectivity: 0.125,
   });
 
   const mesh = new THREE.Mesh(geometry, material);
@@ -90,8 +91,7 @@ controls.update();
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 composer.addPass(new FastBloomPass());
-
-composer.addPass(new OutputPass());
+// composer.addPass(new OutputPass());
 // Handle window resizing
 function onWindowResize() {
   const width = window.innerWidth;

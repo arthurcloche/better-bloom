@@ -200,8 +200,8 @@ class FastBloomPass extends Pass {
     return new ShaderMaterial({
       uniforms: {
         tDiffuse: { value: null },
-        luminanceTreshold: { value: 0.05 },
-        smoothWidth: { value: 2 },
+        luminanceTreshold: { value: 0.1 },
+        smoothWidth: { value: 1 },
         resolution: {
           value: new Vector4(
             this.renderResolution.x,
@@ -238,12 +238,12 @@ class FastBloomPass extends Pass {
     return new ShaderMaterial({
       uniforms: {
         strength: { value: 1.0 },
-        disk: { value: 12.0 },
-        samples: { value: 24.0 },
-        lods: { value: 5.0 },
+        disk: { value: 24.0 },
+        samples: { value: 32.0 },
+        lods: { value: 6.0 },
         lodSteps: { value: 1.0 },
-        compression: { value: 4.0 },
-        saturation: { value: 2.0 },
+        compression: { value: 6.0 },
+        saturation: { value: 1.0 },
         tDiffuse: { value: null },
         tLuminance: { value: null },
         blendMode: { value: true },
@@ -308,14 +308,17 @@ ${leanpsrdnoise}
 
 vec4 goldenBlur(vec2 uv, vec2 polar, vec2 radii, int samplers, float lod){
   vec4 samples = vec4(0.);
+  float weight = 0.;
   for (int i = 1; i <= samplers; i++) {
     vec2 radius =  radii * sqrt(float(i) / float(samplers));
     float theta = float(i) * goldenAngle;
     vec2 off = vec2(polar.x  * cos(theta) - polar.y * sin(theta),  
-                    polar.y  * cos(theta) + polar.x * sin(theta));    
-    samples += textureLod(tLuminance, uv+(off * radius), lod);
+                    polar.y  * cos(theta) + polar.x * sin(theta)); 
+    float gauss = gaussian(length(off));
+    weight += gauss;                       
+    samples += textureLod(tLuminance, uv+(off * radius), lod)*gauss;
   }
-  return samples/float(samplers);
+  return samples/weight;
 }
 
 vec4 add(vec4 src, vec4 dst, bool clamped) {
@@ -343,7 +346,7 @@ scale blur on lod
 
   void main(){
     vec2 uv = (gl_FragCoord.xy/R);
-    vec2 radii = vec2(disk * R.x/R.y)/R;
+    vec2 radii = vec2(disk * max(R.x,R.y)/min(R.x,R.y))/R;
     vec4 frame = texture(tDiffuse,uv);
     vec4 color = vec4(0.);
     float noise = psrdnoise(uv * NOISE_SCALE);
@@ -355,11 +358,8 @@ scale blur on lod
     }
     color /= compression;
     gl_FragColor = add(frame, color*saturation, true);
-    //gl_FragColor = clamp(frame + color , 0., 1.);
-    // gl_FragColor = pow(clamp(gl_FragColor,0.,1.),vec4(1./1.22));
-    //gl_FragColor = mix(frame, gl_FragColor, 1.);
-    //gl_FragColor = color;
-
+    gl_FragColor = pow(clamp(gl_FragColor,0.,1.),vec4(1./1.22));
+    gl_FragColor = mix(frame, gl_FragColor, strength);
   }
   `,
     });
