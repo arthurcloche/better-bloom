@@ -33,6 +33,28 @@ document.body.appendChild(stats.dom);
 
 const light = new THREE.DirectionalLight(0xffffff, 2);
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+// Add magenta and cyan lights
+const lightColors = [0xff00ff, 0x00ffff]; // Magenta and Cyan
+const numLights = 6; // 3 of each color
+
+for (let i = 0; i < numLights; i++) {
+  const color = lightColors[i % 2]; // Alternate between magenta and cyan
+  const pointLight = new THREE.PointLight(color, 10, 200);
+
+  // Random position within a sphere
+  const radius = 100 + Math.random() * 100; // Between 100 and 200
+  const theta = Math.random() * Math.PI * 2;
+  const phi = Math.acos(2 * Math.random() - 1);
+
+  pointLight.position.set(
+    radius * Math.sin(phi) * Math.cos(theta),
+    radius * Math.sin(phi) * Math.sin(theta),
+    radius * Math.cos(phi)
+  );
+
+  scene.add(pointLight);
+}
+
 scene.add(light);
 scene.add(ambientLight);
 
@@ -41,9 +63,11 @@ scene.add(object);
 
 const geometry = new THREE.IcosahedronGeometry(1, 0);
 for (let i = 0; i < 100; i++) {
-  const material = new THREE.MeshPhongMaterial({
-    color: 0xffffff * Math.random(),
-    flatShading: true,
+  const material = new THREE.MeshPhysicalMaterial({
+    color: 0xffffff * (0.5 + Math.random() * 0.5),
+    metalness: 0.5,
+    roughness: 0.4,
+    envMapIntensity: 1.0,
   });
 
   const mesh = new THREE.Mesh(geometry, material);
@@ -63,27 +87,32 @@ controls.dampingFactor = 0.25;
 controls.enableZoom = true;
 controls.update();
 
-// renderer.setClearColor(0x000000, 0); // Set clear color to black with 0 alpha (fully transparent)
-// renderer.setPixelRatio(window.devicePixelRatio);
-
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 composer.addPass(new FastBloomPass());
-// composer.addPass(
-//   new EffectPass(
-//     camera,
-//     new BloomEffect({
-//       mipmapBlur: true,
-//       intensity: 0.5,
-//     })
-//   )
-// );
+
 composer.addPass(new OutputPass());
+// Handle window resizing
+function onWindowResize() {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
+
+  renderer.setSize(width, height);
+  composer.setSize(width, height);
+}
+
+window.addEventListener("resize", onWindowResize);
+
+// Initial call to set the correct size
+onWindowResize();
 
 function animate() {
   requestAnimationFrame(animate);
-  object.rotation.x += 0.005;
-  object.rotation.y += 0.01;
+  object.rotation.x += 0.0025;
+  object.rotation.y += 0.005;
   controls.update();
   composer.render(scene, camera);
   stats.update();

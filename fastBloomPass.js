@@ -238,12 +238,12 @@ class FastBloomPass extends Pass {
     return new ShaderMaterial({
       uniforms: {
         strength: { value: 1.0 },
-        disk: { value: 100.0 },
-        samples: { value: 20.0 },
+        disk: { value: 12.0 },
+        samples: { value: 24.0 },
         lods: { value: 5.0 },
-        lodSteps: { value: 2.0 },
-        compression: { value: 2.0 },
-        saturation: { value: 8.0 },
+        lodSteps: { value: 1.0 },
+        compression: { value: 4.0 },
+        saturation: { value: 2.0 },
         tDiffuse: { value: null },
         tLuminance: { value: null },
         blendMode: { value: true },
@@ -283,7 +283,8 @@ class FastBloomPass extends Pass {
   #define R resolution.xy
   #define PI 3.14159265358
   #define PI2 6.28318530718
-  #define NOISE_SCALE 2048.
+  // rounding up to the closest power of two, https://stackoverflow.com/questions/466204/rounding-up-to-next-power-of-2
+  #define NOISE_SCALE pow(2., ceil(log(max(R.x,R.y))/log(2.)))
   #define EPSILON 1e-5
 
 const float sqrtPI = sqrt(PI2);
@@ -345,17 +346,15 @@ scale blur on lod
     vec2 radii = vec2(disk * R.x/R.y)/R;
     vec4 frame = texture(tDiffuse,uv);
     vec4 color = vec4(0.);
-    float noise = psrdnoise(uv * NOISE_SCALE + T);
+    float noise = psrdnoise(uv * NOISE_SCALE);
     float angle = PI + (noise * 2.- 1.) * PI;
     vec2 polar = vec2(cos(angle), sin(angle));
-    float steps = lodSteps;
-    // vec4 color = goldenBlur(uv, polar, radii, samples, 0.);
     for(int i = 0; i<lods; i++){
       float lod = float(i) * lodSteps;
       color = blending(goldenBlur(uv, polar, radii, samples, lod ),color, false, blendMode);
     }
     color /= compression;
-    gl_FragColor = screen(frame, color*saturation, true);
+    gl_FragColor = add(frame, color*saturation, true);
     //gl_FragColor = clamp(frame + color , 0., 1.);
     // gl_FragColor = pow(clamp(gl_FragColor,0.,1.),vec4(1./1.22));
     //gl_FragColor = mix(frame, gl_FragColor, 1.);
