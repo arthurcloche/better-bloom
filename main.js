@@ -32,7 +32,7 @@ stats.init(renderer);
 document.body.appendChild(stats.dom);
 
 const light = new THREE.DirectionalLight(0xffffff, 2);
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
 // Add magenta and cyan lights
 const lightColors = [0xff00ff, 0x00ffff]; // Magenta and Cyan
 const numLights = 6; // 3 of each color
@@ -44,7 +44,7 @@ for (let i = 0; i < numLights; i++) {
   const color = lightColors[i % 2]; // Alternate between magenta and cyan
   const directionalLight = new THREE.DirectionalLight(
     color,
-    Math.random() * 2.5 + 2.5
+    Math.random() * 2.5 + 3.5
   ); // Random intensity between 5 and 10
   directionalLight.position.set(
     radius * Math.sin(phi) * Math.cos(theta),
@@ -67,7 +67,7 @@ for (let i = 0; i < 100; i++) {
   const material = new THREE.MeshPhysicalMaterial({
     color: 0xffffff * (0.5 + Math.random() * 0.5),
     metalness: 0.25,
-    roughness: 0.25,
+    roughness: 0.5,
     reflectivity: 0.125,
   });
 

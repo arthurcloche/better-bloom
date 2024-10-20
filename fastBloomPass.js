@@ -200,8 +200,8 @@ class FastBloomPass extends Pass {
     return new ShaderMaterial({
       uniforms: {
         tDiffuse: { value: null },
-        luminanceTreshold: { value: 0.1 },
-        smoothWidth: { value: 1 },
+        luminanceTreshold: { value: 0.0 },
+        smoothWidth: { value: 0.5 },
         resolution: {
           value: new Vector4(
             this.renderResolution.x,
@@ -238,15 +238,15 @@ class FastBloomPass extends Pass {
     return new ShaderMaterial({
       uniforms: {
         strength: { value: 1.0 },
-        disk: { value: 24.0 },
-        samples: { value: 32.0 },
-        lods: { value: 6.0 },
-        lodSteps: { value: 1.0 },
+        disk: { value: 36.0 },
+        samples: { value: 24.0 },
+        lods: { value: 4.0 },
+        lodSteps: { value: 2.0 },
         compression: { value: 6.0 },
         saturation: { value: 1.0 },
         tDiffuse: { value: null },
         tLuminance: { value: null },
-        blendMode: { value: true },
+        blendMode: { value: false },
         tTime: { value: 0 },
         resolution: {
           value: new Vector4(
@@ -354,12 +354,12 @@ scale blur on lod
     vec2 polar = vec2(cos(angle), sin(angle));
     for(int i = 0; i<lods; i++){
       float lod = float(i) * lodSteps;
-      color = blending(goldenBlur(uv, polar, radii, samples, lod ),color, false, blendMode);
+      color = add(goldenBlur(uv, polar, radii, samples, lod ),color, false);
     }
     color /= compression;
     gl_FragColor = add(frame, color*saturation, true);
-    gl_FragColor = pow(clamp(gl_FragColor,0.,1.),vec4(1./1.22));
     gl_FragColor = mix(frame, gl_FragColor, strength);
+    gl_FragColor = clamp(gl_FragColor, 0., 1.);
   }
   `,
     });
