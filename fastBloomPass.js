@@ -78,12 +78,12 @@ function generateMipmaps(gl, renderer, texture) {
   gl.texImage2D(
     gl.TEXTURE_2D,
     0,
-    gl.RGBA32F,
+    gl.RGBA16F,
     texture.image.width,
     texture.image.height,
     0,
     gl.RGBA,
-    gl.HALF_FLOAT,
+    gl.FLOAT,
     null
   );
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -93,7 +93,7 @@ function generateMipmaps(gl, renderer, texture) {
     gl.TEXTURE_MIN_FILTER,
     gl.LINEAR_MIPMAP_LINEAR
   );
-  // gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 
   gl.bindTexture(gl.TEXTURE_2D, null);
 }
@@ -200,8 +200,8 @@ class FastBloomPass extends Pass {
     return new ShaderMaterial({
       uniforms: {
         tDiffuse: { value: null },
-        luminanceTreshold: { value: 0.0 },
-        smoothWidth: { value: 0.5 },
+        luminanceTreshold: { value: 0.1 },
+        smoothWidth: { value: 1 },
         resolution: {
           value: new Vector4(
             this.renderResolution.x,
@@ -238,10 +238,10 @@ class FastBloomPass extends Pass {
     return new ShaderMaterial({
       uniforms: {
         strength: { value: 1.0 },
-        disk: { value: 36.0 },
-        samples: { value: 24.0 },
-        lods: { value: 4.0 },
-        lodSteps: { value: 2.0 },
+        disk: { value: 24.0 },
+        samples: { value: 36.0 },
+        lods: { value: 8.0 },
+        lodSteps: { value: 1.0 },
         compression: { value: 6.0 },
         saturation: { value: 1.0 },
         tDiffuse: { value: null },
@@ -284,7 +284,7 @@ class FastBloomPass extends Pass {
   #define PI 3.14159265358
   #define PI2 6.28318530718
   // rounding up to the closest power of two, https://stackoverflow.com/questions/466204/rounding-up-to-next-power-of-2
-  #define NOISE_SCALE pow(2., ceil(log(max(R.x,R.y))/log(2.)))
+  #define NOISE_SCALE pow(2., ceil(log(min(R.x,R.y))/log(2.)))
   #define EPSILON 1e-5
 
 const float sqrtPI = sqrt(PI2);
@@ -352,8 +352,9 @@ scale blur on lod
     float noise = psrdnoise(uv * NOISE_SCALE);
     float angle = PI + (noise * 2.- 1.) * PI;
     vec2 polar = vec2(cos(angle), sin(angle));
-    for(int i = 0; i<lods; i++){
+    for(int i = 0; i<lods-1; i++){
       float lod = float(i) * lodSteps;
+      
       color = add(goldenBlur(uv, polar, radii, samples, lod ),color, false);
     }
     color /= compression;

@@ -5,6 +5,7 @@ import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { FastBloomPass } from "./fastBloomPass";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
+import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(
@@ -37,6 +38,22 @@ const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
 const lightColors = [0xff00ff, 0x00ffff]; // Magenta and Cyan
 const numLights = 6; // 3 of each color
 
+// Load HDRI environment map
+
+const loader = new RGBELoader();
+const hdrEquirect = loader.load(
+  "src/autumn_field_puresky_1k.hdr",
+  () => {
+    hdrEquirect.mapping = THREE.EquirectangularReflectionMapping;
+    hdrEquirect.encoding = THREE.sRGBEncoding;
+    console.log(hdrEquirect);
+  },
+  null,
+  (e) => {
+    console.log(e);
+  }
+);
+
 for (let i = 0; i < numLights; i++) {
   const radius = 300 + Math.random() * 800;
   const theta = Math.random() * Math.PI * 2;
@@ -67,8 +84,9 @@ for (let i = 0; i < 100; i++) {
   const material = new THREE.MeshPhysicalMaterial({
     color: 0xffffff * (0.5 + Math.random() * 0.5),
     metalness: 0.25,
-    roughness: 0.5,
-    reflectivity: 0.125,
+    roughness: 0.25,
+    reflectivity: 0.9,
+    envMap: hdrEquirect,
   });
 
   const mesh = new THREE.Mesh(geometry, material);
@@ -91,7 +109,7 @@ controls.update();
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 composer.addPass(new FastBloomPass());
-// composer.addPass(new OutputPass());
+composer.addPass(new OutputPass());
 // Handle window resizing
 function onWindowResize() {
   const width = window.innerWidth;
